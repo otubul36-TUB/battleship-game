@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR - משחק צוללות</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <style>
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0a1628, #1a2a4a);
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            color: #fff;
+            margin: 0;
+            gap: 20px;
+            padding: 20px;
+        }
+        h1 { font-size: 2.2rem; text-shadow: 0 0 20px rgba(100,180,255,0.4); margin: 0; }
+        p { color: #8ab4f8; font-size: 1.1rem; margin: 0; text-align: center; }
+        #qr {
+            background: #fff;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        a {
+            color: #4ecdc4;
+            font-size: 0.95rem;
+            word-break: break-all;
+            text-align: center;
+            text-decoration: none;
+            padding: 10px 20px;
+            background: rgba(78,205,196,0.1);
+            border: 1px solid rgba(78,205,196,0.3);
+            border-radius: 8px;
+        }
+        a:hover { background: rgba(78,205,196,0.2); }
+    </style>
+</head>
+<body>
+    <h1>⚓ משחק צוללות</h1>
+    <p>סרוק את הקוד עם הנייד כדי לשחק</p>
+    <div id="qr"></div>
+    <a href="https://otubul36-tub.github.io/battleship-game/submarines.html" target="_blank">
+        https://otubul36-tub.github.io/battleship-game/submarines.html
+    </a>
+    <script>
+        new QRCode(document.getElementById('qr'), {
+            text: 'https://otubul36-tub.github.io/battleship-game/submarines.html',
+            width: 256,
+            height: 256,
+            colorDark: '#0a1628',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.H
+        });
+    </script>
+</body>
+</html>
