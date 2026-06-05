@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>משחק צוללות</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: linear-gradient(135deg, #0a1628, #1a2a4a, #0d1f3c);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+            overflow-x: hidden;
+            padding: 10px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin: 10px 0 5px;
+            text-shadow: 0 0 20px rgba(100, 180, 255, 0.4);
+        }
+
+        .status {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+            min-height: 1.8rem;
+            text-align: center;
+            transition: all 0.3s;
+            padding: 0 10px;
+        }
+
+        .status.winner {
+            color: #ffd700;
+            text-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+            font-weight: bold;
+            font-size: 1.3rem;
+        }
+
+        .game-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .board-container { text-align: center; }
+
+        .board-label {
+            font-size: 1rem;
+            margin-bottom: 4px;
+            color: #8ab4f8;
+            font-weight: bold;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 2px;
+            width: min(85vw, 360px);
+            height: min(85vw, 360px);
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(100, 180, 255, 0.3);
+            border-radius: 8px;
+            padding: 3px;
+        }
+
+        .cell {
+            background: rgba(20, 60, 120, 0.5);
+            border: 1px solid rgba(100, 180, 255, 0.15);
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-size: clamp(8px, 2.2vw, 14px);
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            position: relative;
+        }
+
+        .cell:active:not(.hit):not(.miss) { transform: scale(0.9); }
+
+        /* Ship type colors */
+        .cell.ship-carrier {
+            background: linear-gradient(135deg, rgba(120,144,156,0.7), rgba(84,110,122,0.7));
+            border-color: rgba(144,164,174,0.8);
+            box-shadow: inset 0 0 6px rgba(176,190,197,0.3);
+        }
+        .cell.ship-battleship {
+            background: linear-gradient(135deg, rgba(183,28,28,0.6), rgba(136,14,79,0.5));
+            border-color: rgba(229,57,53,0.7);
+            box-shadow: inset 0 0 6px rgba(255,82,82,0.3);
+        }
+        .cell.ship-destroyer {
+            background: linear-gradient(135deg, rgba(21,101,192,0.6), rgba(13,71,161,0.6));
+            border-color: rgba(66,165,245,0.7);
+            box-shadow: inset 0 0 6px rgba(100,181,246,0.3);
+        }
+        .cell.ship-patrol {
+            background: linear-gradient(135deg, rgba(46,125,50,0.6), rgba(27,94,32,0.6));
+            border-color: rgba(76,175,80,0.7);
+            box-shadow: inset 0 0 6px rgba(129,199,132,0.3);
+        }
+        .cell.ship-submarine {
+            background: linear-gradient(135deg, rgba(123,31,162,0.6), rgba(74,20,140,0.6));
+            border-color: rgba(171,71,188,0.7);
+            box-shadow: inset 0 0 6px rgba(206,147,216,0.3);
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-1.5px); }
+        }
+
+        .cell[class*="ship-carrier"],
+        .cell[class*="ship-battleship"],
+        .cell[class*="ship-destroyer"],
+        .cell[class*="ship-patrol"],
+        .cell[class*="ship-submarine"] {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .cell.ship-battleship { animation-delay: 0.5s; }
+        .cell.ship-submarine { animation-delay: 0.8s; }
+        .cell.ship-destroyer { animation-delay: 1s; }
+        .cell.ship-patrol { animation-delay: 1.5s; }
+
+        .cell.ship-preview {
+            background: rgba(100, 255, 150, 0.3);
+            border-color: rgba(100, 255, 150, 0.5);
+        }
+
+        .cell.ship-preview-invalid {
+            background: rgba(255, 80, 80, 0.3);
+            border-color: rgba(255, 80, 80, 0.5);
+        }
+
+        .cell.hit {
+            background: rgba(255, 60, 60, 0.6);
+            border-color: rgba(255, 60, 60, 0.8);
+            cursor: default;
+            animation: none;
+        }
+        .cell.hit::after { content: '💥'; }
+
+        .cell.miss {
+            background: rgba(100, 100, 120, 0.4);
+            border-color: rgba(150, 150, 170, 0.3);
+            cursor: default;
+        }
+        .cell.miss::after {
+            content: '•';
+            color: rgba(180, 180, 200, 0.6);
+        }
+
+        .cell.sunk {
+            background: rgba(255, 30, 30, 0.7);
+            border-color: rgba(255, 30, 30, 0.9);
+            animation: none;
+        }
+        .cell.sunk::after { content: '🔥'; }
+
+        .ship-emoji {
+            position: absolute;
+            font-size: clamp(9px, 2.3vw, 15px);
+            pointer-events: none;
+            filter: drop-shadow(0 0 2px rgba(0,0,0,0.5));
+        }
+
+        .ship-img-overlay {
+            pointer-events: none;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: float 3s ease-in-out infinite;
+            transition: opacity 0.3s;
+        }
+        .ship-img-overlay img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .ship-img-overlay.vertical img {
+            transform: rotate(90deg);
+        }
+        .ship-img-overlay.ship-submarine { filter: drop-shadow(0 2px 6px rgba(123,31,162,0.4)); animation-delay: 0.8s; }
+        .ship-img-overlay.ship-patrol { filter: drop-shadow(0 2px 6px rgba(46,125,50,0.4)); animation-delay: 1.5s; }
+        .ship-img-overlay.ship-carrier { filter: drop-shadow(0 2px 6px rgba(96,125,139,0.4)); animation-delay: 0s; }
+        .ship-img-overlay.ship-battleship { filter: drop-shadow(0 2px 6px rgba(198,40,40,0.4)); animation-delay: 0.5s; }
+        .ship-img-overlay.ship-destroyer { filter: drop-shadow(0 2px 6px rgba(21,101,192,0.4)); animation-delay: 1s; }
+        .ship-img-overlay.sunk {
+            filter: grayscale(1) brightness(0.5);
+            animation: none;
+            opacity: 0.6;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin: 5px 0;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 10px;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .btn:hover { transform: translateY(-2px); }
+        .btn:active { transform: scale(0.95); }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #2196F3, #1565C0);
+            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
+        }
+        .btn-secondary {
+            background: linear-gradient(135deg, #546E7A, #37474F);
+            box-shadow: 0 4px 15px rgba(84, 110, 122, 0.3);
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #4CAF50, #2E7D32);
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #f44336, #c62828);
+            box-shadow: 0 4px 15px rgba(244, 67, 54, 0.3);
+        }
+        .btn:disabled { opacity: 0.4; cursor: default; transform: none; }
+
+        .ships-to-place {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            margin: 5px 0;
+        }
+
+        .ship-option {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(100, 180, 255, 0.15);
+            border: 2px solid rgba(100, 180, 255, 0.3);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.85rem;
+        }
+        .ship-option:hover { background: rgba(100, 180, 255, 0.25); }
+        .ship-option.selected {
+            border-color: #4ecdc4;
+            background: rgba(78, 205, 196, 0.2);
+            box-shadow: 0 0 10px rgba(78, 205, 196, 0.3);
+        }
+        .ship-option.placed {
+            opacity: 0.3;
+            cursor: default;
+            text-decoration: line-through;
+        }
+
+        .ship-shape { display: grid; gap: 1px; }
+
+        .ship-shape-cell {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+        .ship-shape-cell.empty { background: transparent; }
+        .ship-option.placed .ship-shape-cell.filled { background: #555 !important; }
+
+        .score-bar {
+            display: flex;
+            gap: 20px;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+        .score-bar > div {
+            padding: 5px 14px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.06);
+        }
+        .player-score { color: #4ecdc4; }
+        .enemy-score { color: #ff6b6b; }
+
+        .tab-bar { display: flex; gap: 5px; margin-bottom: 5px; }
+        .tab {
+            padding: 8px 20px;
+            border-radius: 8px 8px 0 0;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: #aaa;
+            transition: all 0.2s;
+        }
+        .tab.active {
+            background: rgba(100, 180, 255, 0.15);
+            color: #fff;
+            border-color: rgba(100, 180, 255, 0.3);
+        }
+
+        .hidden { display: none !important; }
+
+        .setup-instructions {
+            font-size: 0.9rem;
+            color: #8ab4f8;
+            text-align: center;
+            line-height: 1.5;
+            margin: 5px 0;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        .modal {
+            background: linear-gradient(135deg, #1a2a4a, #0d1f3c);
+            border: 2px solid rgba(100, 180, 255, 0.3);
+            border-radius: 16px;
+            padding: 30px;
+            text-align: center;
+            max-width: 90vw;
+        }
+        .modal h2 { font-size: 1.8rem; margin-bottom: 10px; }
+        .modal p { font-size: 1.1rem; margin-bottom: 20px; color: #aaa; }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .shake { animation: shake 0.3s ease-in-out; }
+
+        @keyframes splash {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.3); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .splash { animation: splash 0.4s ease-out; }
+
+        .ship-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin: 8px 0 4px;
+            font-size: 0.8rem;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .legend-swatch {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+    </style>
+</head>
+<body>
+    <h1>⚓ משחק צוללות</h1>
+    <div class="status" id="status">הצב את הספינות שלך</div>
+
+    <div class="game-area">
+        <!-- Setup Phase -->
+        <div id="setup-phase">
+            <div class="setup-instructions">
+                בחר ספינה ולחץ על הלוח כדי להציב אותה<br>
+                השתמש בכפתור "סובב" כדי לשנות כיוון
+            </div>
+            <div class="ships-to-place" id="ships-to-place"></div>
+            <div class="controls">
+                <button class="btn btn-secondary" id="rotate-btn">🔄 סובב</button>
+                <button class="btn btn-danger" id="reset-ships-btn">↩️ אפס</button>
+                <button class="btn btn-success" id="random-btn">🎲 אקראי</button>
+                <button class="btn btn-primary" id="start-btn" disabled>⚔️ התחל משחק</button>
+            </div>
+            <div class="board-container">
+                <div class="board-label">הלוח שלך</div>
+                <div class="board" id="setup-board"></div>
+            </div>
+        </div>
+
+        <!-- Game Phase -->
+        <div id="game-phase" class="hidden">
+            <div class="score-bar">
+                <div class="player-score">שלך: <strong id="player-hits">0</strong>/<span id="total-hits-p"></span></div>
+                <div class="enemy-score">יריב: <strong id="enemy-hits">0</strong>/<span id="total-hits-e"></span></div>
+            </div>
+
+            <div class="ship-legend" id="ship-legend"></div>
+
+            <div class="tab-bar">
+                <div class="tab active" data-tab="enemy" id="tab-enemy">🎯 לוח היריב</div>
+                <div class="tab" data-tab="player" id="tab-player">🛡️ הלוח שלי</div>
+            </div>
+
+            <div class="board-container" id="enemy-board-container">
+                <div class="board" id="enemy-board"></div>
+            </div>
+
+            <div class="board-container hidden" id="player-board-container">
+                <div class="board" id="player-board"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Win/Lose Modal -->
+    <div class="modal-overlay hidden" id="modal">
+        <div class="modal">
+            <h2 id="modal-title"></h2>
+            <p id="modal-text"></p>
+            <button class="btn btn-primary" id="modal-btn">🔄 משחק חדש</button>
+        </div>
+    </div>
+
+    <script>
+    const SUB_SVG = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 55">
+      <defs>
+        <linearGradient id="hull" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#9C27B0"/>
+          <stop offset="100%" stop-color="#6A1B9A"/>
+        </linearGradient>
+        <linearGradient id="tower" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#BA68C8"/>
+          <stop offset="100%" stop-color="#8E24AA"/>
+        </linearGradient>
+      </defs>
+      <!-- Hull -->
+      <ellipse cx="85" cy="34" rx="78" ry="17" fill="url(#hull)" stroke="#CE93D8" stroke-width="1.5"/>
+      <!-- Hull highlight -->
+      <ellipse cx="80" cy="28" rx="55" ry="5" fill="white" opacity="0.08"/>
+      <!-- Conning tower -->
+      <rect x="68" y="12" width="24" height="22" rx="6" fill="url(#tower)" stroke="#CE93D8" stroke-width="1"/>
+      <!-- Periscope -->
+      <rect x="78" y="2" width="3" height="14" rx="1.5" fill="#AB47BC"/>
+      <circle cx="79.5" cy="2" r="2.5" fill="#CE93D8"/>
+      <!-- Windows -->
+      <circle cx="35" cy="34" r="5" fill="#E1BEE7" opacity="0.35"/>
+      <circle cx="55" cy="34" r="5" fill="#E1BEE7" opacity="0.35"/>
+      <circle cx="110" cy="34" r="5" fill="#E1BEE7" opacity="0.35"/>
+      <circle cx="130" cy="34" r="5" fill="#E1BEE7" opacity="0.35"/>
+      <!-- Propeller -->
+      <ellipse cx="165" cy="28" rx="3" ry="7" fill="#AB47BC" opacity="0.7" transform="rotate(15,165,28)"/>
+      <ellipse cx="165" cy="40" rx="3" ry="7" fill="#AB47BC" opacity="0.7" transform="rotate(-15,165,40)"/>
+      <circle cx="163" cy="34" r="3" fill="#7B1FA2"/>
+      <!-- Rudder -->
+      <rect x="160" y="30" width="12" height="3" rx="1" fill="#8E24AA"/>
+      <!-- Bubbles -->
+      <circle cx="15" cy="20" r="3" fill="white" opacity="0.15"/>
+      <circle cx="22" cy="12" r="2" fill="white" opacity="0.12"/>
+      <circle cx="10" cy="28" r="2.5" fill="white" opacity="0.1"/>
+    </svg>`)}`;
+
+    const PATROL_SVG = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 50">
+      <defs>
+        <linearGradient id="ph" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#66BB6A"/>
+          <stop offset="100%" stop-color="#2E7D32"/>
+        </linearGradient>
+        <linearGradient id="pcab" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#43A047"/>
+          <stop offset="100%" stop-color="#1B5E20"/>
+        </linearGradient>
+      </defs>
+      <!-- Hull -->
+      <path d="M12,30 Q2,30 6,42 L118,42 Q128,42 124,30 Z" fill="url(#ph)" stroke="#81C784" stroke-width="1.5"/>
+      <!-- Hull highlight -->
+      <path d="M20,30 Q65,24 110,30" fill="none" stroke="white" stroke-width="1.5" opacity="0.1"/>
+      <!-- Cabin -->
+      <rect x="42" y="14" width="38" height="18" rx="6" fill="url(#pcab)" stroke="#81C784" stroke-width="1"/>
+      <!-- Antenna -->
+      <rect x="58" y="4" width="3" height="14" rx="1.5" fill="#4CAF50"/>
+      <!-- Searchlight -->
+      <circle cx="59.5" cy="4" r="3.5" fill="#A5D6A7" opacity="0.8"/>
+      <circle cx="59.5" cy="4" r="1.5" fill="#E8F5E9"/>
+      <!-- Window -->
+      <circle cx="55" cy="23" r="4.5" fill="#C8E6C9" opacity="0.35"/>
+      <circle cx="68" cy="23" r="4.5" fill="#C8E6C9" opacity="0.35"/>
+      <!-- Bow detail -->
+      <circle cx="110" cy="35" r="2" fill="#81C784" opacity="0.5"/>
+      <!-- Wake -->
+      <ellipse cx="16" cy="42" rx="10" ry="2.5" fill="white" opacity="0.12"/>
+      <ellipse cx="8" cy="44" rx="6" ry="1.5" fill="white" opacity="0.08"/>
+    </svg>`)}`;
+
+    const CARRIER_SVG = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 50">
+      <defs>
+        <linearGradient id="cd" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#78909C"/>
+          <stop offset="100%" stop-color="#455A64"/>
+        </linearGradient>
+      </defs>
+      <!-- Flight deck -->
+      <rect x="4" y="6" width="152" height="40" rx="8" fill="url(#cd)" stroke="#90A4AE" stroke-width="1.5"/>
+      <!-- Deck line -->
+      <line x1="18" y1="26" x2="142" y2="26" stroke="#90A4AE" stroke-width="1.2" stroke-dasharray="12,6" opacity="0.4"/>
+      <!-- Island/Bridge -->
+      <rect x="55" y="1" width="28" height="18" rx="4" fill="#607D8B" stroke="#90A4AE" stroke-width="1"/>
+      <rect x="62" y="-3" width="14" height="7" rx="3" fill="#78909C"/>
+      <rect x="67.5" y="-7" width="3" height="6" rx="1" fill="#90A4AE"/>
+      <!-- Aircraft shapes -->
+      <polygon points="25,20 20,24 30,24" fill="#B0BEC5" opacity="0.35"/>
+      <rect x="22" y="24" width="6" height="3" rx="1" fill="#B0BEC5" opacity="0.35"/>
+      <polygon points="110,20 105,24 115,24" fill="#B0BEC5" opacity="0.35"/>
+      <rect x="107" y="24" width="6" height="3" rx="1" fill="#B0BEC5" opacity="0.35"/>
+      <!-- Bow -->
+      <circle cx="148" cy="26" r="2.5" fill="#90A4AE" opacity="0.3"/>
+      <!-- Highlight -->
+      <rect x="12" y="10" width="136" height="4" rx="2" fill="white" opacity="0.06"/>
+    </svg>`)}`;
+
+    const BATTLESHIP_SVG = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 50">
+      <defs>
+        <linearGradient id="bh" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#e53935"/>
+          <stop offset="100%" stop-color="#b71c1c"/>
+        </linearGradient>
+      </defs>
+      <!-- Hull -->
+      <path d="M15,22 Q4,22 8,40 L116,40 Q126,40 122,22 Z" fill="url(#bh)" stroke="#ef5350" stroke-width="1.5"/>
+      <!-- Deck -->
+      <rect x="18" y="16" width="100" height="10" rx="5" fill="#c62828" stroke="#ef5350" stroke-width="0.8"/>
+      <!-- Bridge -->
+      <rect x="48" y="4" width="30" height="16" rx="5" fill="#d32f2f" stroke="#ef5350" stroke-width="1"/>
+      <!-- Radar -->
+      <rect x="58" y="-2" width="10" height="9" rx="3" fill="#e53935"/>
+      <rect x="62" y="-6" width="3" height="6" rx="1" fill="#ef5350"/>
+      <!-- Turrets front -->
+      <circle cx="100" cy="21" r="6" fill="#b71c1c" stroke="#ef5350" stroke-width="0.8"/>
+      <rect x="100" y="18" width="14" height="3" rx="1" fill="#ef5350" opacity="0.7"/>
+      <!-- Turrets rear -->
+      <circle cx="35" cy="21" r="6" fill="#b71c1c" stroke="#ef5350" stroke-width="0.8"/>
+      <rect x="22" y="18" width="14" height="3" rx="1" fill="#ef5350" opacity="0.7"/>
+      <!-- Highlight -->
+      <ellipse cx="68" cy="19" rx="40" ry="2.5" fill="white" opacity="0.07"/>
+    </svg>`)}`;
+
+    const DESTROYER_SVG = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 45">
+      <defs>
+        <linearGradient id="dh" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#42a5f5"/>
+          <stop offset="100%" stop-color="#1565C0"/>
+        </linearGradient>
+      </defs>
+      <!-- Hull -->
+      <path d="M10,25 Q2,25 6,38 L108,38 Q118,38 114,25 Z" fill="url(#dh)" stroke="#64B5F6" stroke-width="1.5"/>
+      <!-- Deck -->
+      <rect x="15" y="16" width="90" height="12" rx="6" fill="#1E88E5" stroke="#64B5F6" stroke-width="0.8"/>
+      <!-- Bridge -->
+      <rect x="40" y="5" width="28" height="15" rx="5" fill="#1976D2" stroke="#64B5F6" stroke-width="1"/>
+      <!-- Radar dome -->
+      <circle cx="54" cy="4" r="5" fill="#2196F3" stroke="#64B5F6" stroke-width="0.8"/>
+      <rect x="53" y="-3" width="3" height="5" rx="1" fill="#64B5F6"/>
+      <!-- Missiles -->
+      <rect x="78" y="14" width="3" height="8" rx="1" fill="#90CAF9" opacity="0.6"/>
+      <rect x="84" y="14" width="3" height="8" rx="1" fill="#90CAF9" opacity="0.6"/>
+      <rect x="90" y="14" width="3" height="8" rx="1" fill="#90CAF9" opacity="0.6"/>
+      <!-- Bow -->
+      <circle cx="110" cy="30" r="2" fill="#64B5F6" opacity="0.4"/>
+      <!-- Highlight -->
+      <ellipse cx="60" cy="20" rx="35" ry="2" fill="white" opacity="0.07"/>
+    </svg>`)}`;
+
+    const SHIP_SVGS = {
+        'ship-submarine': SUB_SVG,
+        'ship-patrol': PATROL_SVG,
+        'ship-carrier': CARRIER_SVG,
+        'ship-battleship': BATTLESHIP_SVG,
+        'ship-destroyer': DESTROYER_SVG,
+    };
+
+    const SHIPS = [
+        {
+            name: 'נושאת מטוסים', size: 5, cssClass: 'ship-carrier',
+            color: '#78909C', emoji: '✈️',
+            shape: [[0,1],[1,0],[1,1],[1,2],[1,3]]
+        },
+        {
+            name: 'ספינת קרב', size: 4, cssClass: 'ship-battleship',
+            color: '#e53935', emoji: '🛡️',
+            shape: [[0,1],[1,0],[1,1],[2,1]]
+        },
+        {
+            name: 'צוללת', size: 3, cssClass: 'ship-submarine',
+            color: '#ab47bc', emoji: '🫧',
+            shape: [[0,0],[0,1],[0,2]]
+        },
+        {
+            name: 'משחתת', size: 3, cssClass: 'ship-destroyer',
+            color: '#42a5f5', emoji: '💣',
+            shape: [[0,0],[0,1],[1,1]]
+        },
+        {
+            name: 'סירת סיור', size: 2, cssClass: 'ship-patrol',
+            color: '#66bb6a', emoji: '🔭',
+            shape: [[0,0],[0,1]]
+        },
+    ];
+    const TOTAL_HITS = SHIPS.reduce((s, sh) => s + sh.size, 0);
+    const GRID = 10;
+
+    function rotateShape(shape) {
+        const rotated = shape.map(([r, c]) => [c, -r]);
+        const minR = Math.min(...rotated.map(([r]) => r));
+        const minC = Math.min(...rotated.map(([, c]) => c));
+        return rotated.map(([r, c]) => [r - minR, c - minC]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    }
+
+    function getRotatedShape(baseShape, rot) {
+        let shape = baseShape.map(c => [...c]);
+        for (let i = 0; i < rot; i++) shape = rotateShape(shape);
+        return shape;
+    }
+
+    function shapeBounds(shape) {
+        return {
+            rows: Math.max(...shape.map(([r]) => r)) + 1,
+            cols: Math.max(...shape.map(([, c]) => c)) + 1
+        };
+    }
+
+    let playerGrid, enemyGrid, playerShips, enemyShips;
+    let rotation = 0, selectedShipIdx = null, placedShips;
+    let gameActive = false, playerHits = 0, enemyHits = 0, playerTurn = true;
+    let aiMemory;
+    let enemyShots, playerShots;
+
+    function createEmptyGrid() {
+        return Array.from({ length: GRID }, () => Array(GRID).fill(0));
+    }
+
+    function init() {
+        playerGrid = createEmptyGrid();
+        enemyGrid = createEmptyGrid();
+        playerShips = [];
+        enemyShips = [];
+        placedShips = new Set();
+        selectedShipIdx = 0;
+        rotation = 0;
+        gameActive = false;
+        playerHits = 0;
+        enemyHits = 0;
+        playerTurn = true;
+        aiMemory = { mode: 'hunt', targets: [], hits: [] };
+        enemyShots = createEmptyGrid();
+        playerShots = createEmptyGrid();
+
+        document.getElementById('setup-phase').classList.remove('hidden');
+        document.getElementById('game-phase').classList.add('hidden');
+        document.getElementById('modal').classList.add('hidden');
+        document.getElementById('status').textContent = 'הצב את הספינות שלך';
+        document.getElementById('status').classList.remove('winner');
+        document.getElementById('start-btn').disabled = true;
+
+        renderShipOptions();
+        renderSetupBoard();
+    }
+
+    function getShipAt(ships, r, c) {
+        return ships.find(s => s.cells.some(([sr, sc]) => sr === r && sc === c));
+    }
+
+    function isShipCenter(ship, r, c) {
+        const idx = ship.cells.findIndex(([sr, sc]) => sr === r && sc === c);
+        return idx === Math.floor(ship.cells.length / 2);
+    }
+
+    function renderShipOptions() {
+        const container = document.getElementById('ships-to-place');
+        container.innerHTML = '';
+        SHIPS.forEach((ship, i) => {
+            const div = document.createElement('div');
+            div.className = 'ship-option' + (placedShips.has(i) ? ' placed' : '') + (selectedShipIdx === i ? ' selected' : '');
+
+            const displayShape = selectedShipIdx === i ? getRotatedShape(ship.shape, rotation) : ship.shape;
+            const bounds = shapeBounds(displayShape);
+            const shapeGrid = document.createElement('div');
+            shapeGrid.className = 'ship-shape';
+            shapeGrid.style.gridTemplateColumns = `repeat(${bounds.cols}, 12px)`;
+            const cellSet = new Set(displayShape.map(([r, c]) => r + ',' + c));
+            for (let r = 0; r < bounds.rows; r++) {
+                for (let c = 0; c < bounds.cols; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'ship-shape-cell ' + (cellSet.has(r + ',' + c) ? 'filled' : 'empty');
+                    if (cellSet.has(r + ',' + c)) cell.style.background = ship.color;
+                    shapeGrid.appendChild(cell);
+                }
+            }
+
+            const label = document.createElement('span');
+            label.textContent = ship.emoji + ' ' + ship.name;
+            div.appendChild(label);
+            div.appendChild(shapeGrid);
+
+            div.addEventListener('click', () => {
+                if (placedShips.has(i)) return;
+                selectedShipIdx = i;
+                renderShipOptions();
+                renderSetupBoard();
+            });
+            container.appendChild(div);
+        });
+    }
+
+    function canPlaceShape(grid, row, col, shape) {
+        const cells = [];
+        for (const [dr, dc] of shape) {
+            const r = row + dr, c = col + dc;
+            if (r < 0 || r >= GRID || c < 0 || c >= GRID) return null;
+            if (grid[r][c] !== 0) return null;
+            for (let ar = -1; ar <= 1; ar++) {
+                for (let ac = -1; ac <= 1; ac++) {
+                    const nr = r + ar, nc = c + ac;
+                    if (nr >= 0 && nr < GRID && nc >= 0 && nc < GRID && grid[nr][nc] !== 0) {
+                        const isOwnCell = shape.some(([sr, sc]) => row + sr === nr && col + sc === nc);
+                        if (!isOwnCell) return null;
+                    }
+                }
+            }
+            cells.push([r, c]);
+        }
+        return cells;
+    }
+
+    function isLinearShip(ship) {
+        return ship.cssClass === 'ship-submarine' || ship.cssClass === 'ship-patrol'
+            || ship.cssClass === 'ship-carrier' || ship.cssClass === 'ship-battleship'
+            || ship.cssClass === 'ship-destroyer';
+    }
+
+    function renderSetupBoard() {
+        const board = document.getElementById('setup-board');
+        board.innerHTML = '';
+        for (let r = 0; r < GRID; r++) {
+            for (let c = 0; c < GRID; c++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.addEventListener('click', () => handleSetupClick(r, c));
+                cell.addEventListener('mouseenter', () => previewShip(r, c));
+                cell.addEventListener('touchstart', (e) => { e.preventDefault(); previewShip(r, c); });
+                cell.addEventListener('touchend', (e) => { e.preventDefault(); handleSetupClick(r, c); clearPreview(); });
+                board.appendChild(cell);
+            }
+        }
+        addShipOverlays(board, playerShips, null);
+    }
+
+    function addShipOverlays(board, ships, shots, sunkOnly) {
+        ships.forEach(ship => {
+            const svgSrc = SHIP_SVGS[ship.cssClass];
+            if (!svgSrc) return;
+            const isSunk = shots && ship.hits >= ship.size;
+            if (sunkOnly && !isSunk) return;
+            if (shots && !isSunk) {
+                const anyHit = ship.cells.some(([r, c]) => shots[r][c] === 'hit');
+                if (anyHit) return;
+            }
+
+            const minR = Math.min(...ship.cells.map(([r]) => r));
+            const maxR = Math.max(...ship.cells.map(([r]) => r));
+            const minC = Math.min(...ship.cells.map(([, c]) => c));
+            const maxC = Math.max(...ship.cells.map(([, c]) => c));
+            const spanR = maxR - minR + 1;
+            const spanC = maxC - minC + 1;
+            const isVertical = spanR > spanC;
+
+            const overlay = document.createElement('div');
+            overlay.className = 'ship-img-overlay ' + ship.cssClass
+                + (isVertical ? ' vertical' : '')
+                + (isSunk ? ' sunk' : '');
+            overlay.style.gridRow = `${minR + 1} / ${maxR + 2}`;
+            overlay.style.gridColumn = `${minC + 1} / ${maxC + 2}`;
+            const img = document.createElement('img');
+            img.src = svgSrc;
+            img.alt = ship.name;
+            overlay.appendChild(img);
+            board.appendChild(overlay);
+        });
+    }
+
+    let previewCells = [];
+    function previewShip(row, col) {
+        if (selectedShipIdx === null || placedShips.has(selectedShipIdx)) return;
+        clearPreview();
+        const ship = SHIPS[selectedShipIdx];
+        const shape = getRotatedShape(ship.shape, rotation);
+        const cells = canPlaceShape(playerGrid, row, col, shape);
+        const boardEl = document.getElementById('setup-board');
+        if (cells) {
+            cells.forEach(([r, c]) => {
+                boardEl.children[r * GRID + c].classList.add('ship-preview');
+            });
+            previewCells = cells;
+        } else {
+            for (const [dr, dc] of shape) {
+                const r = row + dr, c = col + dc;
+                if (r >= 0 && r < GRID && c >= 0 && c < GRID) {
+                    boardEl.children[r * GRID + c].classList.add('ship-preview-invalid');
+                    previewCells.push([r, c]);
+                }
+            }
+        }
+    }
+
+    function clearPreview() {
+        const boardEl = document.getElementById('setup-board');
+        previewCells.forEach(([r, c]) => {
+            const cellEl = boardEl.children[r * GRID + c];
+            if (cellEl) cellEl.classList.remove('ship-preview', 'ship-preview-invalid');
+        });
+        previewCells = [];
+    }
+
+    function handleSetupClick(row, col) {
+        if (selectedShipIdx === null || placedShips.has(selectedShipIdx)) return;
+        const ship = SHIPS[selectedShipIdx];
+        const shape = getRotatedShape(ship.shape, rotation);
+        const cells = canPlaceShape(playerGrid, row, col, shape);
+        if (!cells) return;
+        cells.forEach(([r, c]) => playerGrid[r][c] = 1);
+        playerShips.push({ ...ship, cells, hits: 0 });
+        placedShips.add(selectedShipIdx);
+        selectedShipIdx = null;
+        for (let i = 0; i < SHIPS.length; i++) {
+            if (!placedShips.has(i)) { selectedShipIdx = i; break; }
+        }
+        if (placedShips.size === SHIPS.length) {
+            document.getElementById('start-btn').disabled = false;
+            document.getElementById('status').textContent = 'כל הספינות הוצבו! לחץ "התחל משחק"';
+        }
+        renderShipOptions();
+        renderSetupBoard();
+    }
+
+    function placeShipsRandomly(grid, ships) {
+        const placed = [];
+        for (const ship of SHIPS) {
+            let attempts = 0;
+            while (attempts < 1000) {
+                const rot = Math.floor(Math.random() * 4);
+                const shape = getRotatedShape(ship.shape, rot);
+                const row = Math.floor(Math.random() * GRID);
+                const col = Math.floor(Math.random() * GRID);
+                const cells = canPlaceShape(grid, row, col, shape);
+                if (cells) {
+                    cells.forEach(([r, c]) => grid[r][c] = 1);
+                    placed.push({ ...ship, cells, hits: 0 });
+                    break;
+                }
+                attempts++;
+            }
+        }
+        ships.length = 0;
+        ships.push(...placed);
+    }
+
+    document.getElementById('rotate-btn').addEventListener('click', () => {
+        rotation = (rotation + 1) % 4;
+        clearPreview();
+        renderShipOptions();
+        renderSetupBoard();
+    });
+
+    document.getElementById('reset-ships-btn').addEventListener('click', () => {
+        playerGrid = createEmptyGrid();
+        playerShips = [];
+        placedShips = new Set();
+        selectedShipIdx = 0;
+        rotation = 0;
+        document.getElementById('start-btn').disabled = true;
+        document.getElementById('status').textContent = 'הצב את הספינות שלך';
+        renderShipOptions();
+        renderSetupBoard();
+    });
+
+    document.getElementById('random-btn').addEventListener('click', () => {
+        playerGrid = createEmptyGrid();
+        playerShips = [];
+        placedShips = new Set();
+        placeShipsRandomly(playerGrid, playerShips);
+        SHIPS.forEach((_, i) => placedShips.add(i));
+        selectedShipIdx = null;
+        document.getElementById('start-btn').disabled = false;
+        document.getElementById('status').textContent = 'כל הספינות הוצבו! לחץ "התחל משחק"';
+        renderShipOptions();
+        renderSetupBoard();
+    });
+
+    document.getElementById('start-btn').addEventListener('click', startGame);
+
+    function startGame() {
+        enemyGrid = createEmptyGrid();
+        enemyShips = [];
+        placeShipsRandomly(enemyGrid, enemyShips);
+        gameActive = true;
+        playerTurn = true;
+        playerHits = 0;
+        enemyHits = 0;
+        document.getElementById('setup-phase').classList.add('hidden');
+        document.getElementById('game-phase').classList.remove('hidden');
+        document.getElementById('status').textContent = 'תורך! לחץ על לוח היריב';
+        document.getElementById('player-hits').textContent = '0';
+        document.getElementById('enemy-hits').textContent = '0';
+        document.getElementById('total-hits-p').textContent = TOTAL_HITS;
+        document.getElementById('total-hits-e').textContent = TOTAL_HITS;
+        renderLegend();
+        switchTab('enemy');
+        renderGameBoards();
+    }
+
+    function renderLegend() {
+        const legend = document.getElementById('ship-legend');
+        legend.innerHTML = '';
+        SHIPS.forEach(ship => {
+            const item = document.createElement('div');
+            item.className = 'legend-item';
+            const swatch = document.createElement('div');
+            swatch.className = 'legend-swatch';
+            swatch.style.background = ship.color;
+            const label = document.createElement('span');
+            label.textContent = ship.emoji + ' ' + ship.name;
+            item.appendChild(swatch);
+            item.appendChild(label);
+            legend.appendChild(item);
+        });
+    }
+
+    function renderGameBoards() {
+        renderBoard('enemy-board', enemyGrid, playerShots, enemyShips, false);
+        renderBoard('player-board', playerGrid, enemyShots, playerShips, true);
+    }
+
+    function renderBoard(boardId, grid, shots, ships, isPlayerBoard) {
+        const board = document.getElementById(boardId);
+        board.innerHTML = '';
+        for (let r = 0; r < GRID; r++) {
+            for (let c = 0; c < GRID; c++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+
+                if (shots[r][c] === 'hit') {
+                    const ship = getShipAt(ships, r, c);
+                    if (ship && ship.hits >= ship.size) {
+                        cell.classList.add('sunk');
+                    } else {
+                        cell.classList.add('hit');
+                    }
+                } else if (shots[r][c] === 'miss') {
+                    cell.classList.add('miss');
+                }
+
+                if (!isPlayerBoard) {
+                    cell.addEventListener('click', () => handlePlayerShot(r, c));
+                }
+                board.appendChild(cell);
+            }
+        }
+        addShipOverlays(board, ships, shots, !isPlayerBoard);
+    }
+
+    function handlePlayerShot(row, col) {
+        if (!gameActive || !playerTurn || playerShots[row][col] !== 0) return;
+        const isHit = enemyGrid[row][col] === 1;
+        playerShots[row][col] = isHit ? 'hit' : 'miss';
+        if (isHit) {
+            playerHits++;
+            document.getElementById('player-hits').textContent = playerHits;
+            const ship = getShipAt(enemyShips, row, col);
+            if (ship) ship.hits++;
+            if (ship && ship.hits >= ship.size) {
+                document.getElementById('status').textContent = `הטבעת ${ship.emoji} ${ship.name}! 🎉`;
+                markSurrounding(playerShots, ship);
+            } else {
+                document.getElementById('status').textContent = 'פגיעה! 💥';
+            }
+        } else {
+            document.getElementById('status').textContent = 'פספוס... תור היריב';
+        }
+
+        renderGameBoards();
+        animateCell('enemy-board', row, col, isHit);
+
+        if (playerHits >= TOTAL_HITS) { endGame(true); return; }
+        if (!isHit) { playerTurn = false; setTimeout(aiTurn, 800); }
+    }
+
+    function markSurrounding(shots, ship) {
+        ship.cells.forEach(([r, c]) => {
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    const nr = r + dr, nc = c + dc;
+                    if (nr >= 0 && nr < GRID && nc >= 0 && nc < GRID && shots[nr][nc] === 0) {
+                        shots[nr][nc] = 'miss';
+                    }
+                }
+            }
+        });
+    }
+
+    function aiTurn() {
+        if (!gameActive) return;
+        let row, col;
+
+        if (aiMemory.mode === 'target' && aiMemory.targets.length > 0) {
+            const idx = Math.floor(Math.random() * aiMemory.targets.length);
+            [row, col] = aiMemory.targets.splice(idx, 1)[0];
+        } else {
+            aiMemory.mode = 'hunt';
+            do {
+                row = Math.floor(Math.random() * GRID);
+                col = Math.floor(Math.random() * GRID);
+            } while (enemyShots[row][col] !== 0);
+        }
+
+        if (enemyShots[row][col] !== 0) {
+            aiMemory.targets = aiMemory.targets.filter(([r, c]) => enemyShots[r][c] === 0);
+            if (aiMemory.targets.length === 0) aiMemory.mode = 'hunt';
+            aiTurn();
+            return;
+        }
+
+        const isHit = playerGrid[row][col] === 1;
+        enemyShots[row][col] = isHit ? 'hit' : 'miss';
+
+        if (isHit) {
+            enemyHits++;
+            document.getElementById('enemy-hits').textContent = enemyHits;
+            const ship = getShipAt(playerShips, row, col);
+            if (ship) ship.hits++;
+
+            if (ship && ship.hits >= ship.size) {
+                markSurrounding(enemyShots, ship);
+                aiMemory.hits = aiMemory.hits.filter(([r, c]) => !ship.cells.some(([sr, sc]) => sr === r && sc === c));
+                if (aiMemory.hits.length > 0) {
+                    rebuildAiTargets();
+                } else {
+                    aiMemory.mode = 'hunt';
+                    aiMemory.targets = [];
+                }
+            } else {
+                aiMemory.mode = 'target';
+                aiMemory.hits.push([row, col]);
+                rebuildAiTargets();
+            }
+        }
+
+        renderGameBoards();
+        if (enemyHits >= TOTAL_HITS) { endGame(false); return; }
+        if (isHit) { setTimeout(aiTurn, 600); }
+        else { playerTurn = true; document.getElementById('status').textContent = 'תורך! לחץ על לוח היריב'; }
+    }
+
+    function rebuildAiTargets() {
+        aiMemory.targets = [];
+        const dirs = [[0,1],[0,-1],[1,0],[-1,0]];
+        aiMemory.hits.forEach(([hr, hc]) => {
+            dirs.forEach(([dr, dc]) => {
+                const r = hr + dr, c = hc + dc;
+                if (r >= 0 && r < GRID && c >= 0 && c < GRID && enemyShots[r][c] === 0) {
+                    aiMemory.targets.push([r, c]);
+                }
+            });
+        });
+        const unique = new Map();
+        aiMemory.targets.forEach(t => unique.set(t[0] * GRID + t[1], t));
+        aiMemory.targets = [...unique.values()];
+    }
+
+    function animateCell(boardId, row, col, isHit) {
+        const board = document.getElementById(boardId);
+        const cell = board.children[row * GRID + col];
+        cell.classList.add(isHit ? 'shake' : 'splash');
+        setTimeout(() => cell.classList.remove('shake', 'splash'), 400);
+    }
+
+    function switchTab(tab) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+        document.getElementById('enemy-board-container').classList.toggle('hidden', tab !== 'enemy');
+        document.getElementById('player-board-container').classList.toggle('hidden', tab !== 'player');
+    }
+
+    document.getElementById('tab-enemy').addEventListener('click', () => switchTab('enemy'));
+    document.getElementById('tab-player').addEventListener('click', () => switchTab('player'));
+
+    function endGame(playerWon) {
+        gameActive = false;
+        document.getElementById('modal').classList.remove('hidden');
+        if (playerWon) {
+            document.getElementById('modal-title').textContent = '🏆 ניצחת!';
+            document.getElementById('modal-text').textContent = 'הטבעת את כל ספינות היריב!';
+            document.getElementById('status').textContent = 'ניצחון! 🏆';
+        } else {
+            document.getElementById('modal-title').textContent = '💀 הפסדת';
+            document.getElementById('modal-text').textContent = 'היריב הטביע את כל הספינות שלך';
+            document.getElementById('status').textContent = 'הפסד...';
+        }
+        document.getElementById('status').classList.add('winner');
+    }
+
+    document.getElementById('modal-btn').addEventListener('click', () => init());
+
+    init();
+    </script>
+</body>
+</html>

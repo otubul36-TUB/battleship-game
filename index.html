@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>איקס עיגול</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+        }
+
+        .status {
+            font-size: 1.4rem;
+            margin-bottom: 20px;
+            min-height: 2rem;
+            transition: all 0.3s;
+        }
+
+        .status.winner {
+            color: #ffd700;
+            text-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+            font-weight: bold;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 120px);
+            grid-template-rows: repeat(3, 120px);
+            gap: 8px;
+        }
+
+        .cell {
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+
+        .cell:hover:not(.taken) {
+            background: rgba(255, 255, 255, 0.15);
+            transform: scale(1.05);
+        }
+
+        .cell.taken {
+            cursor: default;
+        }
+
+        .cell.x {
+            color: #ff6b6b;
+            text-shadow: 0 0 20px rgba(255, 107, 107, 0.5);
+        }
+
+        .cell.o {
+            color: #4ecdc4;
+            text-shadow: 0 0 20px rgba(78, 205, 196, 0.5);
+        }
+
+        .cell.win {
+            animation: pulse 0.6s ease-in-out infinite alternate;
+            border-color: #ffd700;
+            background: rgba(255, 215, 0, 0.15);
+        }
+
+        @keyframes pulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.08); }
+        }
+
+        .score-board {
+            display: flex;
+            gap: 40px;
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+        }
+
+        .score-board span {
+            padding: 8px 20px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .score-x { color: #ff6b6b; }
+        .score-o { color: #4ecdc4; }
+        .score-draw { color: #aaa; }
+
+        .restart-btn {
+            margin-top: 25px;
+            padding: 12px 36px;
+            font-size: 1.1rem;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .restart-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <h1>איקס עיגול</h1>
+
+    <div class="score-board">
+        <span class="score-x">X: <strong id="score-x">0</strong></span>
+        <span class="score-draw">תיקו: <strong id="score-draw">0</strong></span>
+        <span class="score-o">O: <strong id="score-o">0</strong></span>
+    </div>
+
+    <div class="status" id="status">תור של X</div>
+
+    <div class="board" id="board"></div>
+
+    <button class="restart-btn" id="restart">משחק חדש</button>
+
+    <script>
+        const board = document.getElementById('board');
+        const statusEl = document.getElementById('status');
+        const restartBtn = document.getElementById('restart');
+        const scoreX = document.getElementById('score-x');
+        const scoreO = document.getElementById('score-o');
+        const scoreDraw = document.getElementById('score-draw');
+
+        let cells = Array(9).fill('');
+        let currentPlayer = 'X';
+        let gameOver = false;
+        let scores = { X: 0, O: 0, draw: 0 };
+
+        const winPatterns = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8],
+            [0, 3, 6], [1, 4, 7], [2, 5, 8],
+            [0, 4, 8], [2, 4, 6]
+        ];
+
+        function render() {
+            board.innerHTML = '';
+            cells.forEach((val, i) => {
+                const cell = document.createElement('div');
+                cell.className = 'cell' + (val ? ' taken ' + val.toLowerCase() : '');
+                cell.textContent = val;
+                cell.addEventListener('click', () => handleClick(i));
+                board.appendChild(cell);
+            });
+        }
+
+        function handleClick(i) {
+            if (cells[i] || gameOver) return;
+            cells[i] = currentPlayer;
+            const winCombo = checkWin();
+            if (winCombo) {
+                gameOver = true;
+                scores[currentPlayer]++;
+                updateScores();
+                statusEl.textContent = `${currentPlayer} ניצח! 🎉`;
+                statusEl.classList.add('winner');
+                render();
+                winCombo.forEach(idx => {
+                    board.children[idx].classList.add('win');
+                });
+                return;
+            }
+            if (cells.every(c => c)) {
+                gameOver = true;
+                scores.draw++;
+                updateScores();
+                statusEl.textContent = 'תיקו!';
+                statusEl.classList.remove('winner');
+                render();
+                return;
+            }
+            currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+            statusEl.textContent = `תור של ${currentPlayer}`;
+            statusEl.classList.remove('winner');
+            render();
+        }
+
+        function checkWin() {
+            for (const pattern of winPatterns) {
+                const [a, b, c] = pattern;
+                if (cells[a] && cells[a] === cells[b] && cells[a] === cells[c]) {
+                    return pattern;
+                }
+            }
+            return null;
+        }
+
+        function updateScores() {
+            scoreX.textContent = scores.X;
+            scoreO.textContent = scores.O;
+            scoreDraw.textContent = scores.draw;
+        }
+
+        restartBtn.addEventListener('click', () => {
+            cells = Array(9).fill('');
+            currentPlayer = 'X';
+            gameOver = false;
+            statusEl.textContent = 'תור של X';
+            statusEl.classList.remove('winner');
+            render();
+        });
+
+        render();
+    </script>
+</body>
+</html>
