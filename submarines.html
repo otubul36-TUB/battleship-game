@@ -750,7 +750,24 @@
         return cells;
     }
 
-    const LINEAR_SHIPS = new Set(['ship-submarine', 'ship-patrol']);
+    function buildShipMask(ship) {
+        const minR = Math.min(...ship.cells.map(([r]) => r));
+        const maxR = Math.max(...ship.cells.map(([r]) => r));
+        const minC = Math.min(...ship.cells.map(([, c]) => c));
+        const maxC = Math.max(...ship.cells.map(([, c]) => c));
+        const spanR = maxR - minR + 1;
+        const spanC = maxC - minC + 1;
+        if (ship.cells.length === spanR * spanC) return null;
+        let rects = '';
+        ship.cells.forEach(([r, c]) => {
+            const x = ((c - minC) / spanC * 100).toFixed(2);
+            const y = ((r - minR) / spanR * 100).toFixed(2);
+            const w = (100 / spanC).toFixed(2);
+            const h = (100 / spanR).toFixed(2);
+            rects += '<rect x="' + x + '%" y="' + y + '%" width="' + w + '%" height="' + h + '%" fill="white"/>';
+        });
+        return 'url("data:image/svg+xml,' + encodeURIComponent("<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\'>" + rects + '</svg>') + '")';
+    }
 
     function getAdjacentEdges(ship, r, c) {
         const set = new Set(ship.cells.map(([r, c]) => r + ',' + c));
@@ -805,7 +822,6 @@
 
     function addShipOverlays(board, ships, shots, sunkOnly) {
         ships.forEach(ship => {
-            if (!LINEAR_SHIPS.has(ship.cssClass)) return;
             const svgSrc = SHIP_SVGS[ship.cssClass];
             if (!svgSrc) return;
             const isSunk = shots && ship.hits >= ship.size;
@@ -842,6 +858,14 @@
             overlay.style.top = oTop + 'px';
             overlay.style.width = (oRight - oLeft) + 'px';
             overlay.style.height = (oBottom - oTop) + 'px';
+
+            const mask = buildShipMask(ship);
+            if (mask) {
+                overlay.style.webkitMaskImage = mask;
+                overlay.style.maskImage = mask;
+                overlay.style.webkitMaskSize = '100% 100%';
+                overlay.style.maskSize = '100% 100%';
+            }
 
             const img = document.createElement('img');
             img.src = svgSrc;
