@@ -70,6 +70,7 @@
             border: 2px solid rgba(100, 180, 255, 0.3);
             border-radius: 8px;
             padding: 3px;
+            position: relative;
         }
 
         .cell {
@@ -749,6 +750,40 @@
         return cells;
     }
 
+    const LINEAR_SHIPS = new Set(['ship-submarine', 'ship-patrol']);
+
+    function getAdjacentEdges(ship, r, c) {
+        const set = new Set(ship.cells.map(([r, c]) => r + ',' + c));
+        return {
+            top: set.has((r - 1) + ',' + c),
+            bottom: set.has((r + 1) + ',' + c),
+            left: set.has(r + ',' + (c - 1)),
+            right: set.has(r + ',' + (c + 1))
+        };
+    }
+
+    function styleShipCell(cell, ship, r, c) {
+        cell.classList.add(ship.cssClass);
+        const adj = getAdjacentEdges(ship, r, c);
+        if (adj.top) cell.style.borderTopColor = 'transparent';
+        if (adj.bottom) cell.style.borderBottomColor = 'transparent';
+        if (adj.left) cell.style.borderLeftColor = 'transparent';
+        if (adj.right) cell.style.borderRightColor = 'transparent';
+        const rd = '5px', no = '0';
+        cell.style.borderRadius = [
+            (!adj.top && !adj.left) ? rd : no,
+            (!adj.top && !adj.right) ? rd : no,
+            (!adj.bottom && !adj.right) ? rd : no,
+            (!adj.bottom && !adj.left) ? rd : no
+        ].join(' ');
+        if (isShipCenter(ship, r, c)) {
+            const em = document.createElement('span');
+            em.className = 'ship-emoji';
+            em.textContent = ship.emoji;
+            cell.appendChild(em);
+        }
+    }
+
     function renderSetupBoard() {
         const board = document.getElementById('setup-board');
         board.innerHTML = '';
@@ -756,6 +791,8 @@
             for (let c = 0; c < GRID; c++) {
                 const cell = document.createElement('div');
                 cell.className = 'cell';
+                const ship = getShipAt(playerShips, r, c);
+                if (ship) styleShipCell(cell, ship, r, c);
                 cell.addEventListener('click', () => handleSetupClick(r, c));
                 cell.addEventListener('mouseenter', () => previewShip(r, c));
                 cell.addEventListener('touchstart', (e) => { e.preventDefault(); previewShip(r, c); });
@@ -766,27 +803,9 @@
         addShipOverlays(board, playerShips, null);
     }
 
-    function buildShipMask(ship) {
-        const minR = Math.min(...ship.cells.map(([r]) => r));
-        const maxR = Math.max(...ship.cells.map(([r]) => r));
-        const minC = Math.min(...ship.cells.map(([, c]) => c));
-        const maxC = Math.max(...ship.cells.map(([, c]) => c));
-        const spanR = maxR - minR + 1;
-        const spanC = maxC - minC + 1;
-        if (ship.cells.length === spanR * spanC) return null;
-        let rects = '';
-        ship.cells.forEach(([r, c]) => {
-            const x = ((c - minC) / spanC * 100).toFixed(2);
-            const y = ((r - minR) / spanR * 100).toFixed(2);
-            const w = (100 / spanC).toFixed(2);
-            const h = (100 / spanR).toFixed(2);
-            rects += '<rect x="' + x + '%" y="' + y + '%" width="' + w + '%" height="' + h + '%" fill="white"/>';
-        });
-        return 'url("data:image/svg+xml,' + encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'>" + rects + '</svg>') + '")';
-    }
-
     function addShipOverlays(board, ships, shots, sunkOnly) {
         ships.forEach(ship => {
+            if (!LINEAR_SHIPS.has(ship.cssClass)) return;
             const svgSrc = SHIP_SVGS[ship.cssClass];
             if (!svgSrc) return;
             const isSunk = shots && ship.hits >= ship.size;
@@ -800,24 +819,29 @@
             const maxR = Math.max(...ship.cells.map(([r]) => r));
             const minC = Math.min(...ship.cells.map(([, c]) => c));
             const maxC = Math.max(...ship.cells.map(([, c]) => c));
-            const spanR = maxR - minR + 1;
-            const spanC = maxC - minC + 1;
-            const isVertical = spanR > spanC;
+            const isVertical = (maxR - minR) > (maxC - minC);
+
+            // Position using first and last cell positions (RTL-safe)
+            const firstCell = board.children[minR * GRID + minC];
+            const lastCell = board.children[maxR * GRID + maxC];
+            if (!firstCell || !lastCell) return;
+            const boardRect = board.getBoundingClientRect();
+            const fRect = firstCell.getBoundingClientRect();
+            const lRect = lastCell.getBoundingClientRect();
+            const oLeft = Math.min(fRect.left, lRect.left) - boardRect.left;
+            const oTop = Math.min(fRect.top, lRect.top) - boardRect.top;
+            const oRight = Math.max(fRect.right, lRect.right) - boardRect.left;
+            const oBottom = Math.max(fRect.bottom, lRect.bottom) - boardRect.top;
 
             const overlay = document.createElement('div');
             overlay.className = 'ship-img-overlay ' + ship.cssClass
                 + (isVertical ? ' vertical' : '')
                 + (isSunk ? ' sunk' : '');
-            overlay.style.gridRow = `${minR + 1} / ${maxR + 2}`;
-            overlay.style.gridColumn = `${minC + 1} / ${maxC + 2}`;
-
-            const mask = buildShipMask(ship);
-            if (mask) {
-                overlay.style.webkitMaskImage = mask;
-                overlay.style.maskImage = mask;
-                overlay.style.webkitMaskSize = '100% 100%';
-                overlay.style.maskSize = '100% 100%';
-            }
+            overlay.style.position = 'absolute';
+            overlay.style.left = oLeft + 'px';
+            overlay.style.top = oTop + 'px';
+            overlay.style.width = (oRight - oLeft) + 'px';
+            overlay.style.height = (oBottom - oTop) + 'px';
 
             const img = document.createElement('img');
             img.src = svgSrc;
@@ -986,6 +1010,11 @@
             for (let c = 0; c < GRID; c++) {
                 const cell = document.createElement('div');
                 cell.className = 'cell';
+
+                if (isPlayerBoard && grid[r][c] === 1 && shots[r][c] === 0) {
+                    const ship = getShipAt(ships, r, c);
+                    if (ship) styleShipCell(cell, ship, r, c);
+                }
 
                 if (shots[r][c] === 'hit') {
                     const ship = getShipAt(ships, r, c);
